@@ -1,0 +1,24 @@
+# Секрети
+.env
+.env.local
+*.key
+secrets.txt
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Збірки
+dist/
+build/
+*.log
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Бекапи БД
+backups/
+*.dump
