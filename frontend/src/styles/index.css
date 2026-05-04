@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-cream-50 text-sage-900 font-sans;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display tracking-tight;
+  }
+
+  *:focus-visible {
+    @apply outline-none ring-2 ring-sage-400 ring-offset-2 ring-offset-cream-50;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5
+           font-medium text-sm transition-all duration-200
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply btn bg-sage-500 text-white hover:bg-sage-600 active:bg-sage-700
+           shadow-soft hover:shadow-gentle;
+  }
+
+  .btn-secondary {
+    @apply btn bg-cream-100 text-sage-700 hover:bg-cream-200 border border-cream-300;
+  }
+
+  .btn-ghost {
+    @apply btn text-sage-600 hover:bg-sage-50;
+  }
+
+  .btn-danger {
+    @apply btn bg-warm-400 text-white hover:bg-warm-500;
+  }
+
+  .input {
+    @apply w-full rounded-xl border border-cream-300 bg-white px-4 py-2.5
+           text-sage-900 placeholder:text-sage-400
+           focus:border-sage-400 focus:ring-1 focus:ring-sage-400
+           transition-colors;
+  }
+
+  .textarea {
+    @apply input resize-none min-h-[100px];
+  }
+
+  .card {
+    @apply bg-white rounded-2xl shadow-soft border border-cream-200 p-6
+           transition-shadow duration-200 hover:shadow-gentle;
+  }
+
+  .card-flat {
+    @apply bg-white rounded-2xl border border-cream-200 p-6;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium;
+  }
+
+  .badge-sage {
+    @apply badge bg-sage-100 text-sage-700;
+  }
+
+  .badge-warm {
+    @apply badge bg-warm-100 text-warm-500;
+  }
+
+  .badge-accent {
+    @apply badge bg-accent-100 text-accent-500;
+  }
+
+  .container-app {
+    @apply max-w-6xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-cream-50;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-sage-200 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-sage-300;
+}
