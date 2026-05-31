@@ -73,7 +73,7 @@ export function ReportModal({ open, onClose, contentType, contentId }) {
             onClick={() =>
               mutation.mutate({
                 content_type: contentType,
-                content_id: contentId,
+                content_id: Number(contentId),
                 reason,
                 comment: comment || undefined,
               })
