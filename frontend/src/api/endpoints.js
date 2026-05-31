@@ -75,4 +75,7 @@ export const moderationApi = {
     api.get('/moderation/complaints', { params }).then((r) => r.data),
   resolve: (id, data) =>
     api.post(`/moderation/complaints/${id}/resolve`, data).then((r) => r.data),
+  // Пряме видалення без скарги
+  deleteContent: (type, id) =>
+    api.delete(`/moderation/content/${type}/${id}`).then((r) => r.data),
 }
