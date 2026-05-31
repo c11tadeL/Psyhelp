@@ -1,18 +1,18 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Bell, MessageCircle, AlertTriangle, Shield, User, LogOut } from 'lucide-react'
+import { Bell, MessageCircle, AlertTriangle, Shield, ShieldCheck, User, LogOut } from 'lucide-react'
 import { notificationsApi, meApi } from '../../api/endpoints'
 import { useAuthStore } from '../../hooks/useAuth'
 import { Spinner, EmptyState, PageLoader, Confirm } from '../../components/ui/Common'
 import { toast } from '../../hooks/useToast'
 import { formatRelative, getApiError } from '../../utils/format'
-import { useState } from 'react'
 
 const TYPE_INFO = {
   new_comment: { icon: MessageCircle, color: 'text-sage-500', label: 'Новий коментар' },
   warning: { icon: AlertTriangle, color: 'text-warm-500', label: 'Попередження' },
   content_removed: { icon: Shield, color: 'text-warm-400', label: 'Контент видалено' },
+  complaint_resolved: { icon: ShieldCheck, color: 'text-sage-500', label: 'Скаргу розглянуто' },
 }
 
 export function NotificationsPage() {
@@ -65,9 +65,35 @@ export function NotificationsPage() {
                 </div>
                 <div className="flex-1">
                   <p className="font-semibold text-sage-800">{info.label}</p>
-                  {n.payload?.reason && (
-                    <p className="text-sm text-sage-600 mt-1">{n.payload.reason}</p>
+
+                  {/* Повідомлення або причина */}
+                  {(n.payload?.message || n.payload?.reason) && (
+                    <p className="text-sm text-sage-600 mt-1">
+                      {n.payload.message || n.payload.reason}
+                    </p>
                   )}
+
+                  {/* Превʼю контенту за який попередження */}
+                  {n.type === 'warning' && n.payload?.content_preview && (
+                    <p className="text-xs text-sage-500 mt-1 italic line-clamp-2 bg-cream-50 rounded px-2 py-1">
+                      За {n.payload.content_type === 'post' ? 'звернення' : 'коментар'}: «{n.payload.content_preview}»
+                    </p>
+                  )}
+
+                  {/* Попередження про бан */}
+                  {n.type === 'warning' && n.payload?.banned && (
+                    <p className="text-xs text-warm-500 mt-1 font-medium">
+                      ⚠️ Акаунт заблоковано на 7 днів
+                    </p>
+                  )}
+
+                  {/* Лічильник попереджень */}
+                  {n.type === 'warning' && n.payload?.warnings_count && !n.payload?.banned && (
+                    <p className="text-xs text-sage-400 mt-1">
+                      Попереджень: {n.payload.warnings_count} з 3
+                    </p>
+                  )}
+
                   {n.post_id && (
                     <Link
                       to={`/posts/${n.post_id}`}
