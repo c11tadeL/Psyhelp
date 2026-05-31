@@ -13,7 +13,9 @@ const router = express.Router();
  * GET /api/posts  */
 router.get(
   '/',
-  dbHandler(async (client, req) => {
+  dbHandler(async (client, req, res) => {
+    res.set('Cache-Control', 'no-store');
+
     const q = PostsListQuerySchema.parse(req.query);
 
     let orderBy;
@@ -42,7 +44,7 @@ router.get(
     const sql = `
       SELECT  p.id, p.body, p.comments_count, p.rating_score, p.created_at,
               c.id AS category_id, c.name AS category_name, c.slug AS category_slug,
-              u.nickname
+              u.nickname AS author_nickname
       FROM    psyhelp.posts p
       JOIN    psyhelp.categories c ON c.id = p.category_id
       JOIN    psyhelp.users      u ON u.id = p.user_id
@@ -59,6 +61,27 @@ router.get(
       items: rows,
       next_cursor: last ? { date: last.created_at, id: Number(last.id) } : null,
     };
+  })
+);
+
+/**
+ * GET /api/me/posts */
+router.get(
+  '/me/list',
+  requireAuth,
+  dbHandler(async (client, req) => {
+    const limit = Math.min(Number(req.query.limit) || 20, 50);
+    const { rows } = await client.query(
+      `SELECT  p.id, p.body, p.comments_count, p.created_at,
+               c.name AS category_name
+       FROM    psyhelp.posts p
+       JOIN    psyhelp.categories c ON c.id = p.category_id
+       WHERE   p.user_id = $1 AND p.is_deleted = FALSE
+       ORDER BY p.created_at DESC
+       LIMIT   $2`,
+      [req.ctx.userId, limit]
+    );
+    return { items: rows };
   })
 );
 
@@ -186,27 +209,6 @@ router.delete(
     }
     res.status(204);
     return null;
-  })
-);
-
-/**
- * GET /api/me/posts */
-router.get(
-  '/me/list',
-  requireAuth,
-  dbHandler(async (client, req) => {
-    const limit = Math.min(Number(req.query.limit) || 20, 50);
-    const { rows } = await client.query(
-      `SELECT  p.id, p.body, p.comments_count, p.created_at,
-               c.name AS category_name
-       FROM    psyhelp.posts p
-       JOIN    psyhelp.categories c ON c.id = p.category_id
-       WHERE   p.user_id = $1 AND p.is_deleted = FALSE
-       ORDER BY p.created_at DESC
-       LIMIT   $2`,
-      [req.ctx.userId, limit]
-    );
-    return { items: rows };
   })
 );
 
