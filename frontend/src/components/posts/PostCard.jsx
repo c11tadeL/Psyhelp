@@ -48,7 +48,7 @@ export function PostCard({ post, onReport }) {
             </span>
           )}
         </div>
-        <span className="text-xs text-sage-400 font-mono">@{post.nickname}</span>
+        <span className="text-xs text-sage-400 font-mono">@{post.author_nickname}</span>
         {onReport && (
           <button
             onClick={() => onReport(post)}
