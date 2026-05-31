@@ -68,6 +68,7 @@ export function ChatPage() {
   const queryClient = useQueryClient()
   const [conversationId, setConversationId] = useState(null)
   const [input, setInput] = useState('')
+  const [localMessages, setLocalMessages] = useState([])
   const scrollRef = useRef(null)
 
   const { data: convs } = useQuery({
@@ -83,37 +84,56 @@ export function ChatPage() {
 
   const send = useMutation({
     mutationFn: chatApi.send,
+    onMutate: (variables) => {
+      // Одразу показуємо повідомлення юзера локально
+      setLocalMessages((prev) => [
+        ...prev,
+        { id: 'optimistic', role: 'user', message: variables.message },
+      ])
+    },
     onSuccess: (data) => {
       setInput('')
-      if (!conversationId) {
-        setConversationId(data.conversation_id)
-      }
-      queryClient.invalidateQueries({ queryKey: ['chat', data.conversation_id] })
+      // Очищаємо локальні — тепер є реальні з бекенду
+      setLocalMessages([])
+      queryClient.setQueryData(['chat', data.conversation_id], (old) => ({
+        items: [...(old?.items || []), ...data.messages],
+      }))
+      setConversationId(data.conversation_id)
       queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] })
     },
     onError: (err) => {
+      setLocalMessages([])
       const status = err?.response?.status
-      if (status === 503) {
-        toast.error('AI-помічник тимчасово недоступний (не налаштовано OPENAI_API_KEY)')
+      const message = err?.response?.data?.error
+
+      if (status === 429) {
+        toast.error('Денний ліміт запитів вичерпано. Спробуйте завтра.')
+      } else if (status === 503 || status === 502) {
+        toast.error('AI-сервіс тимчасово недоступний. Спробуйте за кілька хвилин.')
+      } else if (message) {
+        toast.error(message)
       } else {
-        toast.error(getApiError(err))
+        toast.error('Не вдалось надіслати повідомлення.')
       }
     },
   })
 
+  // Скидаємо локальні повідомлення при зміні розмови
+  useEffect(() => {
+    setLocalMessages([])
+  }, [conversationId])
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-  }, [messages, send.isPending])
+  }, [messages, localMessages, send.isPending])
 
   const onSubmit = (e) => {
     e.preventDefault()
     if (!input.trim() || send.isPending) return
-    const optimisticMsg = input.trim()
-    send.mutate({ conversation_id: conversationId || undefined, message: optimisticMsg })
+    send.mutate({ conversation_id: conversationId || undefined, message: input.trim() })
   }
 
   const items = messages?.items || []
-  const hasOptimistic = send.isPending && send.variables?.message
 
   return (
     <div className="container-app py-8">
@@ -126,11 +146,26 @@ export function ChatPage() {
         </p>
       </div>
 
-      <div className="card-flat bg-warm-50 border-warm-200 mb-6 flex items-start gap-3">
-        <AlertTriangle className="w-5 h-5 text-warm-500 flex-shrink-0 mt-0.5" />
-        <p className="text-sm text-sage-700">
-          Я не замінюю професійного психолога. Якщо стан критичний — зверніться до фахівця або на гарячу лінію психологічної допомоги <strong>0 800 100 102</strong>.
-        </p>
+      <div className="card-flat bg-cream-50 border-cream-200 mb-6">
+        <div className="flex items-start gap-3 mb-3">
+          <Sparkles className="w-5 h-5 text-sage-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-sage-800 mb-1">
+              Хто такий AI-помічник?
+            </p>
+            <p className="text-sm text-sage-600 leading-relaxed">
+              Це простір де можна виговоритись і бути почутим. Помічник виступає у ролі уважного співрозмовника — він не ставить діагнозів і не замінює психологічну допомогу. Просто хтось, хто слухає.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-start gap-3 pt-3 border-t border-cream-200">
+          <AlertTriangle className="w-4 h-4 text-warm-400 flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-sage-500">
+            Якщо вам зараз дуже погано — зателефонуйте на безкоштовну лінію психологічної підтримки{' '}
+            <strong className="text-sage-700">0 800 100 102</strong> або Lifeline{' '}
+            <strong className="text-sage-700">7333</strong>.
+          </p>
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4">
@@ -138,12 +173,12 @@ export function ChatPage() {
           conversations={convs?.items}
           currentId={conversationId}
           onSelect={setConversationId}
-          onNew={() => setConversationId(null)}
+          onNew={() => { setConversationId(null); setLocalMessages([]) }}
         />
 
         <main className="flex-1 card flex flex-col h-[600px]">
           <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2">
-            {!conversationId && items.length === 0 && (
+            {!conversationId && items.length === 0 && localMessages.length === 0 && !send.isPending && (
               <EmptyState
                 icon={Sparkles}
                 title="Розкажіть, що вас турбує"
@@ -153,20 +188,24 @@ export function ChatPage() {
 
             {msgsLoading && conversationId && <Spinner className="w-6 h-6 mx-auto" />}
 
+            {/* Реальні повідомлення з бекенду */}
             {items.map((m) => (
               <MessageBubble key={m.id} role={m.role} message={m.message} />
             ))}
 
-            {hasOptimistic && (
-              <>
-                <MessageBubble role="user" message={send.variables.message} />
-                <div className="flex justify-start">
-                  <div className="bg-white border border-cream-200 rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-sage-400 animate-pulse" />
-                    <span className="text-sm text-sage-500">друкую...</span>
-                  </div>
+            {/* Локальні optimistic повідомлення */}
+            {localMessages.map((m) => (
+              <MessageBubble key={m.id} role={m.role} message={m.message} />
+            ))}
+
+            {/* Індикатор очікування відповіді AI */}
+            {send.isPending && (
+              <div className="flex justify-start">
+                <div className="bg-white border border-cream-200 rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-sage-400 animate-pulse" />
+                  <span className="text-sm text-sage-500">друкую...</span>
                 </div>
-              </>
+              </div>
             )}
           </div>
 
