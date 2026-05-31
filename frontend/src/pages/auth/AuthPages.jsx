@@ -5,6 +5,7 @@ import { useAuthStore } from '../../hooks/useAuth'
 import { toast } from '../../hooks/useToast'
 import { getApiError } from '../../utils/format'
 import { Spinner } from '../../components/ui/Common'
+import { useQueryClient } from '@tanstack/react-query'
 
 function AuthLayout({ title, subtitle, children, footer }) {
   return (
@@ -41,6 +42,7 @@ export function LoginPage() {
   const { login } = useAuthStore()
   const navigate = useNavigate()
   const location = useLocation()
+  const queryClient = useQueryClient()
   const from = location.state?.from?.pathname || '/'
 
   const onSubmit = async (e) => {
@@ -48,6 +50,8 @@ export function LoginPage() {
     setSubmitting(true)
     try {
       await login({ email, password })
+      // Інвалідуємо кеш постів — бекенд може повертати різні дані для авт./неавт.
+      queryClient.invalidateQueries({ queryKey: ['posts'] })
       toast.success('Ласкаво просимо!')
       navigate(from, { replace: true })
     } catch (err) {
@@ -119,6 +123,7 @@ export function RegisterPage() {
   const [submitting, setSubmitting] = useState(false)
   const { register, login } = useAuthStore()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const update = (k) => (e) => setForm({ ...form, [k]: e.target.value })
 
@@ -128,6 +133,7 @@ export function RegisterPage() {
     try {
       await register(form)
       await login({ email: form.email, password: form.password })
+      queryClient.invalidateQueries({ queryKey: ['posts'] })
       toast.success('Акаунт створено! Ласкаво просимо.')
       navigate('/')
     } catch (err) {
