@@ -33,6 +33,15 @@ async function withUserContext(ctx, fn) {
   try {
     await client.query('BEGIN');
 
+    
+    let pgRole = null;
+    if (ctx.role === 'moderator') pgRole = 'psyhelp_moderator';
+    else if (ctx.role === 'user') pgRole = 'psyhelp_user';
+
+    if (pgRole && ALLOWED_ROLES.has(pgRole)) {
+      await client.query(`SET LOCAL ROLE ${pgRole}`);
+    }
+
     await client.query("SELECT set_config('app.encryption_key', $1, true)", [
       config.PSYHELP_ENCRYPTION_KEY,
     ]);
@@ -46,14 +55,6 @@ async function withUserContext(ctx, fn) {
       ]);
     }
 
-    let pgRole = null;
-    if (ctx.role === 'moderator') pgRole = 'psyhelp_moderator';
-    else if (ctx.role === 'user') pgRole = 'psyhelp_user';
-
-    if (pgRole && ALLOWED_ROLES.has(pgRole)) {
-      await client.query(`SET LOCAL ROLE ${pgRole}`);
-    }
-    
     const result = await fn(client);
     await client.query('COMMIT');
     return result;
@@ -77,9 +78,6 @@ async function healthCheck() {
   }
 }
 
-/**
- * Graceful shutdown.
- */
 async function closePool() {
   logger.info('Closing PG pool...');
   await pool.end();
