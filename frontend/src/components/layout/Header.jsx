@@ -22,7 +22,7 @@ export function Header() {
     queryKey: ['notifications', 'unread-count'],
     queryFn: notificationsApi.unreadCount,
     enabled: !!user,
-    refetchInterval: 60_000,
+    refetchInterval: 15_000,
   })
 
   const handleLogout = async () => {
