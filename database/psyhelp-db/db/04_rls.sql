@@ -176,6 +176,9 @@ CREATE POLICY notifications_owner ON psyhelp.notifications
 CREATE POLICY notifications_app_all ON psyhelp.notifications
     FOR ALL TO psyhelp_app USING (TRUE) WITH CHECK (TRUE);
 
+CREATE POLICY notifications_moderator_all ON psyhelp.notifications
+    FOR ALL TO psyhelp_moderator
+    USING (TRUE) WITH CHECK (TRUE);
 -- ---------------------------------------------------------------------
 -- SESSIONS: тільки власник.
 -- ---------------------------------------------------------------------
