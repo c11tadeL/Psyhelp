@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Send, Flag, MessageCircle, Trash2 } from 'lucide-react'
-import { categoriesApi, postsApi, commentsApi } from '../../api/endpoints'
+import { categoriesApi, postsApi, commentsApi, moderationApi } from '../../api/endpoints'
 import { useAuthStore } from '../../hooks/useAuth'
 import { ReportModal } from '../../components/posts/ReportModal'
 import { Spinner, PageLoader, Confirm } from '../../components/ui/Common'
@@ -15,18 +15,46 @@ export function PostDetailPage() {
   const { user } = useAuthStore()
   const [comment, setComment] = useState('')
   const [reportTarget, setReportTarget] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(null)
+
+  const isModerator = user?.role === 'moderator'
 
   const { data: post, isLoading } = useQuery({
     queryKey: ['post', id],
     queryFn: () => postsApi.get(id),
   })
 
+  // Окремий запит коментарів — не покладаємося на post.comments
+  const { data: commentsData } = useQuery({
+    queryKey: ['comments', id],
+    queryFn: () => commentsApi.list(id),
+    enabled: !!id,
+  })
+
+  const comments = commentsData?.items ?? commentsData ?? post?.comments ?? []
+
   const addComment = useMutation({
     mutationFn: (body) => commentsApi.create(id, { body }),
     onSuccess: () => {
       setComment('')
+      queryClient.invalidateQueries({ queryKey: ['comments', id] })
       queryClient.invalidateQueries({ queryKey: ['post', id] })
       toast.success('Коментар надіслано')
+    },
+    onError: (err) => toast.error(getApiError(err)),
+  })
+
+  const moderatorDelete = useMutation({
+    mutationFn: ({ type, contentId }) => moderationApi.deleteContent(type, contentId),
+    onSuccess: (_, { type }) => {
+      queryClient.invalidateQueries({ queryKey: ['post', id] })
+      queryClient.invalidateQueries({ queryKey: ['comments', id] })
+      queryClient.invalidateQueries({ queryKey: ['posts'] })
+      toast.success(type === 'post' ? 'Пост видалено' : 'Коментар видалено')
+      setConfirmDelete(null)
+      if (type === 'post') {
+        window.history.back()
+      }
     },
     onError: (err) => toast.error(getApiError(err)),
   })
@@ -52,21 +80,31 @@ export function PostDetailPage() {
 
         <div className="flex items-center justify-between text-sm text-sage-500 pt-4 border-t border-cream-100">
           <span className="font-mono text-sage-400">@{post.author_nickname}</span>
-          {user && user.nickname !== post.author_nickname && (
-            <button
-              onClick={() => setReportTarget({ type: 'post', id: post.id })}
-              className="text-sage-400 hover:text-warm-400 transition-colors flex items-center gap-1"
-            >
-              <Flag className="w-4 h-4" /> Поскаржитись
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {user && !isModerator && user.nickname !== post.author_nickname && (
+              <button
+                onClick={() => setReportTarget({ type: 'post', id: post.id })}
+                className="text-sage-400 hover:text-warm-400 transition-colors flex items-center gap-1"
+              >
+                <Flag className="w-4 h-4" /> Поскаржитись
+              </button>
+            )}
+            {isModerator && (
+              <button
+                onClick={() => setConfirmDelete({ type: 'post', id: post.id })}
+                className="text-sage-400 hover:text-warm-400 transition-colors flex items-center gap-1 text-sm"
+              >
+                <Trash2 className="w-4 h-4" /> Видалити пост
+              </button>
+            )}
+          </div>
         </div>
       </article>
 
       <section>
         <h2 className="font-display font-semibold text-xl text-sage-800 mb-4 flex items-center gap-2">
           <MessageCircle className="w-5 h-5" />
-          Коментарі підтримки ({post.comments?.length || 0})
+          Коментарі підтримки ({comments.length})
         </h2>
 
         {user ? (
@@ -102,11 +140,31 @@ export function PostDetailPage() {
         )}
 
         <div className="space-y-3">
-          {post.comments?.map((c) => (
+          {comments.map((c) => (
             <div key={c.id} className="card-flat">
               <div className="flex items-center justify-between mb-2 text-sm">
                 <span className="font-mono text-sage-500">@{c.nickname}</span>
-                <span className="text-xs text-sage-400">{formatRelative(c.created_at)}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-sage-400">{formatRelative(c.created_at)}</span>
+                  {user && !isModerator && user.nickname !== c.nickname && (
+                    <button
+                      onClick={() => setReportTarget({ type: 'comment', id: c.id })}
+                      className="text-sage-300 hover:text-warm-400 transition-colors"
+                      title="Поскаржитись на коментар"
+                    >
+                      <Flag className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  {isModerator && (
+                    <button
+                      onClick={() => setConfirmDelete({ type: 'comment', id: c.id })}
+                      className="text-sage-300 hover:text-warm-400 transition-colors"
+                      title="Видалити коментар"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
               <p className="text-sage-700 whitespace-pre-wrap leading-relaxed">{c.body}</p>
             </div>
@@ -119,6 +177,15 @@ export function PostDetailPage() {
         onClose={() => setReportTarget(null)}
         contentType={reportTarget?.type}
         contentId={reportTarget?.id}
+      />
+
+      <Confirm
+        open={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={() => moderatorDelete.mutate({ type: confirmDelete.type, contentId: confirmDelete.id })}
+        title={confirmDelete?.type === 'post' ? 'Видалити пост?' : 'Видалити коментар?'}
+        message="Контент буде видалено, а автору надійде сповіщення про порушення правил."
+        danger
       />
     </div>
   )
@@ -239,9 +306,7 @@ export function MyPostsPage() {
             <article key={post.id} className="card">
               <div className="flex items-center justify-between mb-3">
                 <span className="badge-sage">{post.category_name}</span>
-                <span className="text-xs text-sage-400">
-                  {formatRelative(post.created_at)}
-                </span>
+                <span className="text-xs text-sage-400">{formatRelative(post.created_at)}</span>
               </div>
               <Link to={`/posts/${post.id}`} className="block mb-4">
                 <p className="text-sage-800 line-clamp-3 hover:text-sage-600 transition-colors">
